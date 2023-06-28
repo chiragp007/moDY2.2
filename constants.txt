@@ -1,0 +1,10 @@
+M 2
+R 0.5
+K 2
+gamma 2
+eps 2
+sigma 2
+T 2
+imd 2
+kb 1
+
