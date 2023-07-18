@@ -35,18 +35,16 @@ __host__ __device__ bool step(double x){
 }
 
 // -------------------New CODE----------------By Chirag----------------//
-__global__ void compute_acceleration_sd(Particle* particles, size_t n, double dt, Vector3d g, Vector3d* force_d, Const c_h){
+__global__ void compute_acceleration_sd(Particle* particles, size_t n, double dt, Vector3d g, Const c_h){
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    double ke = 0, pe = 0;
+    // double ke = 0, pe = 0;
 
-    if(i < n){//acceleration a(t+dt)
-
-        ke += 0.5 * dot(particles[i].vel, particles[i].vel) * c_h.M;
+    if(i < n){ //acceleration a(t+dt)
 
         Vector3d temp_force= Vector3d (0,0,0);
-
+        
         temp_force = temp_force + c_h.M * g;
-
+        
         for(size_t j = 0; j < n; j++){
 
             if (i==j){
@@ -56,13 +54,14 @@ __global__ void compute_acceleration_sd(Particle* particles, size_t n, double dt
             Vector3d x_ij = particles[i].pos - particles[j].pos;
             double x_norm = x_ij.norm();
             Vector3d x_unit = x_ij / x_norm;
-            
-            temp_force = c_h.K * x_unit * (c_h.sigma - x_norm) * step(c_h.sigma - x_norm) - 
-                c_h.gamma * x_unit * dot(x_unit, (particles[i].vel - particles[j].vel)) * step(c_h.sigma - x_norm);//Granular forces(Spring-Dashpot) 
-                
-            // printf("Particle %d - Temp Force: (%f, %f, %f)\n", i, temp_force.x, temp_force.y, temp_force.z);
 
-            pe += 4.0 * c_h.eps * (pow(c_h.sigma / x_norm, 12) - pow(c_h.sigma / x_norm, 6));
+            if (x_norm < c_h.sigma ){
+
+                temp_force = temp_force + c_h.K * x_unit * (c_h.sigma - x_norm) * step(c_h.sigma - x_norm) - 
+                    c_h.gamma * x_unit * dot(x_unit, (particles[i].vel - particles[j].vel)) * step(c_h.sigma - x_norm); //Granular forces(Spring-Dashpot) 
+
+                }
+
         }
 
         particles[i].acc = temp_force/ c_h.M;
@@ -70,30 +69,6 @@ __global__ void compute_acceleration_sd(Particle* particles, size_t n, double dt
     }
 }
 
-// -------------------OLD CODE----------------By Praneeth----------------//
-
-// __global__ void compute_acceleration_sd(Particle* particles, size_t n, double dt, Vector3d g, Vector3d* force_d, Const c_h){
-//     int i = blockIdx.x * blockDim.x + threadIdx.x;
-//     double ke = 0, pe = 0;
-//     if(i < n){//acceleration a(t+dt)
-//         ke += 0.5 * dot(particles[i].vel, particles[i].vel) * c_h.M;
-//         for(size_t j = i + 1; j < n; j++){
-//             Vector3d x_ij = particles[i].pos - particles[j].pos;
-//             double x_norm = x_ij.norm();
-//             Vector3d x_unit = x_ij / x_norm;
-//             Vector3d f;
-//             f = c_h.K * x_unit * (c_h.sigma - x_norm) * step(c_h.sigma - x_norm) 
-//             - c_h.gamma * x_unit * dot(x_unit, (particles[i].vel - particles[j].vel)) * step(c_h.sigma - x_norm);//Granular forces(Spring-Dashpot) 
-//             force_d[j] = force_d[j] - f;//reaction force
-//             force_d[i] = force_d[i] + f;
-//             pe += 4.0 * c_h.eps * (pow(c_h.sigma / x_norm, 12) - pow(c_h.sigma / x_norm, 6));
-//         }
-//         __syncthreads();
-//         force_d[i] = force_d[i] + c_h.M * g;
-//         particles[i].acc = force_d[i] / c_h.M;
-//     }
-//     // std::cout<<"Internal energy:"<<ke + pe<<std::endl;
-// }
 
 __global__ void compute_velocity(Particle* particles, size_t n, double dt){
     size_t i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -102,6 +77,7 @@ __global__ void compute_velocity(Particle* particles, size_t n, double dt){
         particles[i].vel = particles[i].vel + particles[i].acc * dt / 2;
     }
 }
+
 
 int main(int argc, char* argv[]){
     //command line arguments
@@ -142,6 +118,7 @@ int main(int argc, char* argv[]){
 
     //copy *particles to gpu
     size_t size = n * sizeof(Particle);
+
     cudaMalloc(&particles_device, size);
     cudaMemcpy(particles_device, particles, size, cudaMemcpyHostToDevice);
 
@@ -149,17 +126,19 @@ int main(int argc, char* argv[]){
     int blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;
 
     int iter = 0;
-    size_t size_v = n * sizeof(Vector3d);
+    // size_t size_v = n * sizeof(Vector3d);
+
     for(double t = 0; t<=T; t += dt){
         std::cout<<"time:"<<t<<" "<<std::endl;
         
-        Vector3d* force_d;
-        cudaMalloc(&force_d, size_v);
+        // Vector3d* force_d;
+        // cudaMalloc(&force_d, size_v);
 
         compute_position<<<blocksPerGrid, threadsPerBlock>>>(particles_device, n, dt);
         cudaDeviceSynchronize();
 
-        compute_acceleration_sd<<<blocksPerGrid, threadsPerBlock>>>(particles_device, n, dt, g, force_d, c_h);
+        // compute_acceleration_sd<<<blocksPerGrid, threadsPerBlock>>>(particles_device, n, dt, g, force_d, c_h);
+        compute_acceleration_sd<<<blocksPerGrid, threadsPerBlock>>>(particles_device, n, dt, g, c_h);
         cudaDeviceSynchronize();
 
         compute_velocity<<<blocksPerGrid, threadsPerBlock>>>(particles_device, n, dt);
@@ -167,12 +146,11 @@ int main(int argc, char* argv[]){
         
         cudaMemcpy(particles, particles_device, size, cudaMemcpyDeviceToHost);
 
-        if(iter%10 == 0)
-            
+        if(iter%10 == 0)            
             write_vtk(particles, n, iter);
         iter++;
 
-        cudaFree(force_d);
+        // cudaFree(force_d);
     }
 
     cudaFree(particles_device);
