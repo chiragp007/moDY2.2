@@ -1,13 +1,44 @@
+#include <sstream> // Add this include for stringstream operations
+
 #include "../include/constants.h"
 
-void Const::load(const std::string& filename){
-    std::fstream file(filename);
-    std::string word;
-    double var[9];
-    for(int i = 1; i<=18 && file >> word; i++){
-        if(i%2 == 0)
-            var[i/2-1] = std::stod(word);
+Const::Const(const std::string& filename) {
+    std::fstream file;
+    file.open(filename);
+
+    // Read all constants using string stream
+    std::string line;
+    int i = 0;
+    while (std::getline(file, line) && i < 11) {
+        std::stringstream ss(line);
+        std::string key;
+        ss >> key;
+        if (key == "M")
+            ss >> M;
+        else if (key == "R")
+            ss >> R;
+        else if (key == "K")
+            ss >> K;
+        else if (key == "gamma")
+            ss >> gamma;
+        else if (key == "eps")
+            ss >> eps;
+        else if (key == "sigma")
+            ss >> sigma;
+        else if (key == "T")
+            ss >> T;
+        else if (key == "imd")
+            ss >> imd;
+        else if (key == "kb")
+            ss >> kb;
+        else if (key == "gamma_r")
+            ss >> gamma_t;
+        else if (key == "mu")
+            ss >> mu;
+
+        i++;
     }
-    M = var[0]; R = var[1]; K = var[2];  gamma = var[3]; eps = var[4]; sigma = var[5]; T = var[6]; imd = var[7]; kb = var[8];
-    std_dev = sqrt(kb * T/M);
+    std_dev = sqrt(kb * T / M);
+
+    file.close();
 }
