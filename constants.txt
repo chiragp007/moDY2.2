@@ -1,10 +1,10 @@
-M 2
+M 1
 R 0.5
-K 2
-gamma 2
-eps 2
-sigma 2
-T 2
-imd 2
+K 1
+gamma 1
+eps 1
+sigma 0.5
+T 1
+imd 1
 kb 1
 
